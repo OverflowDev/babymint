@@ -1,4 +1,12 @@
-import { useAddress, useDisconnect, useMetamask, useNFTDrop } from "@thirdweb-dev/react";
+import { useAddress, 
+    useDisconnect, 
+    useMetamask, 
+    useNFTDrop,
+    // useNetwork,
+    useNetworkMismatch,
+    // useChainId,
+} from "@thirdweb-dev/react";
+
 import { useState,useEffect } from "react";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -10,9 +18,12 @@ function Drop() {
     const [claimedSupply, setClaimedSupply] = useState(null)
     const [totalSupply, setTotalSupply] = useState(null)
     const [priceInEth, setPriceInEth] = useState('')
+    const [limitPerTransaction, setLimitPerTransaction] = useState(null)
+
+    // Loading 
     const [loading, setLoading] = useState(true)
 
-
+    // Nft drop 
     const nftDrop = useNFTDrop('0x6a8502CC4AaAcf98D35C6E01D8e1498bDA20bb33')
 
     // Auth 
@@ -21,33 +32,40 @@ function Drop() {
     const disconnect = useDisconnect()
     // Auth ends 
 
-    // Fetch Price 
+    // Match Network 
+    const isMismatched = useNetworkMismatch()
+
+    // Fetch Conditions, price 
     useEffect(() => {
       if(!nftDrop) return
 
       const fetchPrice = async () => {
 
           const claimConditions = await nftDrop.claimConditions.getAll()
+
           setPriceInEth(claimConditions?.[0].currencyMetadata.displayValue)
+          setLimitPerTransaction(claimConditions?.[0].quantityLimitPerTransaction)
       }
 
       fetchPrice()
 
     }, [nftDrop])
 
+
     // fetch supply
     useEffect(() => {
       if(!nftDrop) return
 
         const fetchNFTDropData = async () => {
-
             setLoading(true)
-
-            const claimed = await nftDrop.getAllClaimed()
+            // const claimed = await nftDrop.getAllClaimed()
+            const claimedNFTCount = await nftDrop.totalClaimedSupply();
             const total = await nftDrop.totalSupply()
 
-            setClaimedSupply(claimed.length)
+            // setClaimedSupply(claimed.length)
+            setClaimedSupply(claimedNFTCount?.toString())
             setTotalSupply(total)
+
 
             setLoading(false)
         }
@@ -60,14 +78,13 @@ function Drop() {
     const mintNft = () => {
 
         if(!nftDrop || !address) return 
+
         // How many uique nft 
-        const quantity = 1 
+        const quantity = limitPerTransaction
 
         setLoading(true)
 
-        const notification = toast.loading('Minting...', {
-
-        })
+        const notification = toast.loading('Minting...')
 
         nftDrop.claimTo(address, quantity).then( async (tx) => {
 
@@ -83,19 +100,16 @@ function Drop() {
             console.log(claimedNft)
 
         }).catch(err => {
-            
             toast.error('Something went wrong')
         }).finally(() => {
-
             setLoading(false)
             toast.dismiss(notification)
         })
-        // console.log('Hello Mint')
     }
 
   return (
     <div className="container overflow-hidden">
-        <Toaster  position="top-center" />
+        <Toaster  position="bottom-center" />
 
         <nav className='mb-2 border-b-2'>
             <div className="mx-auto px-4 sm:px-6 lg:px-8">
@@ -109,14 +123,19 @@ function Drop() {
 
                     <div className="block">
                         <div className="ml-10 flex items-center space-x-4">
-                            <button className="hidden md:block border-over rounded-lg font-bold  shadow-md shadow-overflow py-1 px-6 ">
-                                Rinkeby
-                            </button>
+                            {/* {activeChain && 
+                                <div className="hidden md:block border-over rounded-lg font-bold  shadow-md shadow-overflow py-1 px-6 ">
+                                    {activeChain.name}
+                                </div>
+                            } */}
+                                <div className="hidden md:block border-over rounded-lg font-bold  shadow-md shadow-overflow py-1 px-6 ">
+                                    RinkeBy
+                                </div>
+
                             <div className="">
                                 {address && (
                                     <div 
                                         className="hidden md:block rounded-lg font-bold shadow shadow-overflow py-1 px-6">
-
                                             {address.substring(0,5)}...{address.substring(address.length - 5)}
                                     </div>
                                 
@@ -171,23 +190,36 @@ function Drop() {
 
                     {/* Mint Button  */}
                     <div className="flex gap-0.5 mt-4">
-                        <button 
-                            onClick={mintNft}
-                            disabled={loading || claimedSupply === totalSupply?.toNumber() || !address}
-                            className="bg-white hover:bg-over focus:outline-none transition text-overflow font-bold uppercase px-8 py-3 disabled:bg-gray-500"
-                        >
+                        {isMismatched ? (
 
-                            {loading ? (
-                                <>Loading...</>
-                            ) : claimedSupply === totalSupply?.toNumber() ? (
-                            <>Sold Out</>
-                            ) : !address ? (
-                                <>Connect Wallet</>
+                            <div>
+                                {/* {toast('Switch to RinkeBy')} */}
+                                Switch to RinkeBy 
+                            </div>
+
                             ) : (
-                                <span className="font-bold">Mint NFT {priceInEth}</span>
-                            )}
+                                <button 
+                                    onClick={mintNft}
+                                    disabled={loading || claimedSupply === totalSupply?.toNumber() || !address || limitPerTransaction == 1 }
+                                    className="bg-white hover:bg-over focus:outline-none transition text-overflow font-bold uppercase px-8 py-3 disabled:bg-gray-500"
+                                >
 
-                        </button>
+                                    {loading ? (
+                                        <>Loading...</>
+                                    ) : claimedSupply === totalSupply?.toNumber() ? (
+                                    <>Sold Out</>
+                                    ) : !address ? (
+                                        <div className="cursor-pointer" onClick={() => (connectWithMetamask()) }>Connect Wallet</div>
+                                    ) : limitPerTransaction == 1 ? (
+                                        <>You can only mint once</>
+                                    ) : (
+                                            <span className="font-bold">Mint NFT {priceInEth}</span>
+                                    )}
+
+                                </button>
+                            )
+
+                        }
                     </div>
                 </div>
             </div>
